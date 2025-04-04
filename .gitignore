@@ -1,0 +1,7 @@
+# Test documents
+BIS/
+edf/
+test_peuma.ipynb
+
+#python env
+.venv/

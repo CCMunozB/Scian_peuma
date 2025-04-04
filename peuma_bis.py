@@ -1,6 +1,7 @@
 import serial
 import struct
 import time
+from datetime import datetime
 from collections import deque
 
 class BISMonitor:
@@ -42,7 +43,7 @@ class BISMonitor:
         )
         self.ser.write(packet)
 
-    def send_command(self, message_id, routing_id=4, data=b'', max_retries=3):
+    def send_command(self, message_id, routing_id=4, data=b'', max_retries=1000):
         """Send command with ACK/NAK retry logic"""
         for attempt in range(max_retries + 1):
             current_seq = self.sequence_number
@@ -62,6 +63,7 @@ class BISMonitor:
             # Timeout or NAK received
             if attempt < max_retries:
                 print(f"Retrying command {message_id} (attempt {attempt+1})")
+                time.sleep(60)
                 continue
                 
         print(f"Failed to send command {message_id} after {max_retries} retries")
@@ -161,14 +163,25 @@ if __name__ == "__main__":
     try:
         if monitor.send_raw_eeg(128):
             print("RAW EEG command acknowledged")
-            
+            date = datetime.now()
+            start_time = time.time()
+            string_date = str(date).replace(" ", "_")
+            string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
             while True:
                 packet = monitor.read_packet()
                 if packet and packet['type'] == 'data':
                     if packet['message_id'] == 50:  # M_DATA_RAW
-                        data = monitor.parse_data_raw(packet['data'])
-                        print(f"Received {len(data['samples'])} samples")
-                        # Process EEG data here
+                        data_pre = monitor.parse_data_raw(packet['data'])
+                        
+                        with open(string_date, 'ab') as file_to_write:
+                            file_to_write.write(packet['data'])
+                        
+                        if time.time() - start_time >= 7200:
+                            date = datetime.now()
+                            start_time = time.time()
+                            string_date = str(date).replace(" ", "_")
+                            string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
+                        
                         
         else:
             print("Failed to start EEG streaming")
