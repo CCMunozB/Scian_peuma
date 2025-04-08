@@ -2,6 +2,8 @@
 BIS/
 edf/
 test_peuma.ipynb
+test/
 
 #python env
 .venv/
+.vscode/

@@ -50,8 +50,8 @@ class BISMonitor:
             self._send_command_packet(current_seq, message_id, routing_id, data)
             
             # Wait for ACK with timeout
-            start_time = time.time()
-            while time.time() - start_time < 0.032:  # 31.25ms + buffer
+            start_time = time.perf_counter()
+            while time.perf_counter() - start_time < 0.031:
                 packet = self.read_packet()
                 
                 if packet and packet['type'] == 'ACK' and packet['seq'] == current_seq:
@@ -60,10 +60,12 @@ class BISMonitor:
                 elif packet and packet['type'] == 'NAK' and packet['seq'] == current_seq:
                     print("NAK recieved")
                     break  # Will retry
+                
+                time.sleep(0.001)
                     
             # Timeout or NAK received
             if attempt < max_retries:
-                print(f"Retrying command {message_id} (attempt {attempt+1}, time {time.time() - start_time})")
+                print(f"Retrying command {message_id} (attempt {attempt+1}, time {time.perf_counter() - start_time})")
                 time.sleep(60)
                 continue
                 
@@ -159,7 +161,7 @@ class BISMonitor:
 
 # Usage Example
 if __name__ == "__main__":
-    time.sleep(60)
+    time.sleep(5)
     # Initialize the device
     monitor = BISMonitor('/dev/ttyUSB0')
 
