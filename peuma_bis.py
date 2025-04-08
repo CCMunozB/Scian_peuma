@@ -158,45 +158,37 @@ class BISMonitor:
 
 # Usage Example
 if __name__ == "__main__":
-    attempt = 0
-    while attempt <= 3:
-        try:
-            monitor = BISMonitor('/dev/ttyUSB0')
-        
-            try:
-                if monitor.send_raw_eeg(128):
-                    print("RAW EEG command acknowledged")
-                    date = datetime.now()
-                    start_time = time.time()
-                    string_date = str(date).replace(" ", "_")
-                    string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
-                    while True:
-                        packet = monitor.read_packet()
-                        if packet and packet['type'] == 'data':
-                            if packet['message_id'] == 50:  # M_DATA_RAW
-                                data_pre = monitor.parse_data_raw(packet['data'])
-                                
-                                with open(string_date, 'ab') as file_to_write:
-                                    file_to_write.write(packet['data'])
-                                
-                                if time.time() - start_time >= 7200:
-                                    date = datetime.now()
-                                    start_time = time.time()
-                                    string_date = str(date).replace(" ", "_")
-                                    string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
-                                
-                                
-                else:
-                    print("Failed to start EEG streaming")
-                    
-            except KeyboardInterrupt:
-                monitor.stop_raw_eeg()
-                monitor.close()
-                print("Stopped")
-                break
+    time.sleep(60)
+    # Initialize the device
+    monitor = BISMonitor('/dev/ttyUSB0')
+
+    try:
+        if monitor.send_raw_eeg(128):
+            print("RAW EEG command acknowledged")
+            date = datetime.now()
+            start_time = time.time()
+            string_date = str(date).replace(" ", "_")
+            string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
+            while True:
+                packet = monitor.read_packet()
+                if packet and packet['type'] == 'data':
+                    if packet['message_id'] == 50:  # M_DATA_RAW
+                        data_pre = monitor.parse_data_raw(packet['data'])
+                        
+                        with open(string_date, 'ab') as file_to_write:
+                            file_to_write.write(packet['data'])
+                        
+                        if time.time() - start_time >= 7200:
+                            date = datetime.now()
+                            start_time = time.time()
+                            string_date = str(date).replace(" ", "_")
+                            string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
+                        
+                        
+        else:
+            print("Failed to start EEG streaming")
             
-        except:
-            print("Failed to connect to BIS monitor")
-            attempt +=1
-            monitor.close()  # Close the serial connection
-            time.sleep(30)  # Wait for 1 second before attempting to reconnect
+    except KeyboardInterrupt:
+        monitor.stop_raw_eeg()
+        monitor.close()
+        print("Stopped")
