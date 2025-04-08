@@ -58,11 +58,12 @@ class BISMonitor:
                     self.sequence_number = (current_seq + 1) % 65536
                     return True
                 elif packet and packet['type'] == 'NAK' and packet['seq'] == current_seq:
+                    print("NAK recieved")
                     break  # Will retry
                     
             # Timeout or NAK received
             if attempt < max_retries:
-                print(f"Retrying command {message_id} (attempt {attempt+1})")
+                print(f"Retrying command {message_id} (attempt {attempt+1}, time {time.time() - start_time})")
                 time.sleep(60)
                 continue
                 
