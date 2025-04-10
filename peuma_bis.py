@@ -3,6 +3,9 @@ import struct
 import time
 from datetime import datetime
 from collections import deque
+import threading
+import queue
+import os
 
 class BISMonitor:
     def __init__(self, port='/dev/ttyUSB0'):
@@ -60,13 +63,11 @@ class BISMonitor:
                 elif packet and packet['type'] == 'NAK' and packet['seq'] == current_seq:
                     print("NAK recieved")
                     break  # Will retry
-                
-                time.sleep(0.001)
                     
             # Timeout or NAK received
             if attempt < max_retries:
                 print(f"Retrying command {message_id} (attempt {attempt+1}, time {time.perf_counter() - start_time})")
-                time.sleep(60)
+                time.sleep(1)
                 continue
                 
         print(f"Failed to send command {message_id} after {max_retries} retries")
@@ -159,6 +160,43 @@ class BISMonitor:
     def close(self):
         self.ser.close()
 
+# Thread-safe queue for sharing data between threads
+data_queue = queue.Queue()
+
+def data_transmission_reception(monitor):
+    """Thread for handling data transmission and reception."""
+    while True:
+        packet = monitor.read_packet()
+        if packet and packet['type'] == 'data':
+            if packet['message_id'] == 50:  # M_DATA_RAW
+                data_queue.put(packet['data'])  # Add data to the queue
+
+def data_writing():
+    """Thread for handling data writing to a file."""
+    date = datetime.now()
+    start_time = time.time()
+    string_date = str(date).replace(" ", "_")
+    string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
+
+    while True:
+        try:
+            # Get data from the queue (blocks until data is available)
+            data = data_queue.get(timeout=1)
+            print(data)
+            with open(string_date, 'ab') as file_to_write:
+                file_to_write.write(data)
+
+            # Rotate file every 2 hours
+            if time.time() - start_time >= 7200:
+                date = datetime.now()
+                start_time = time.time()
+                string_date = str(date).replace(" ", "_")
+                string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
+
+        except queue.Empty:
+            # No data received within the timeout
+            continue
+
 # Usage Example
 if __name__ == "__main__":
     time.sleep(5)
@@ -168,29 +206,24 @@ if __name__ == "__main__":
     try:
         if monitor.send_raw_eeg(128):
             print("RAW EEG command acknowledged")
-            date = datetime.now()
-            start_time = time.time()
-            string_date = str(date).replace(" ", "_")
-            string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
-            while True:
-                packet = monitor.read_packet()
-                if packet and packet['type'] == 'data':
-                    if packet['message_id'] == 50:  # M_DATA_RAW
-                        data_pre = monitor.parse_data_raw(packet['data'])
-                        
-                        with open(string_date, 'ab') as file_to_write:
-                            file_to_write.write(packet['data'])
-                        
-                        if time.time() - start_time >= 7200:
-                            date = datetime.now()
-                            start_time = time.time()
-                            string_date = str(date).replace(" ", "_")
-                            string_date = "BIS/BIS_" + string_date[:-7].replace(":", "") + ".bin"
-                        
-                        
+
+            # Create and start threads
+            transmission_thread = threading.Thread(target=data_transmission_reception, args=(monitor,))
+            writing_thread = threading.Thread(target=data_writing)
+
+            transmission_thread.daemon = True
+            writing_thread.daemon = True
+
+            transmission_thread.start()
+            writing_thread.start()
+
+            # Keep the main thread alive
+            transmission_thread.join()
+            writing_thread.join()
+
         else:
             print("Failed to start EEG streaming")
-            
+
     except KeyboardInterrupt:
         monitor.stop_raw_eeg()
         monitor.close()
