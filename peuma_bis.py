@@ -182,7 +182,6 @@ def data_writing():
         try:
             # Get data from the queue (blocks until data is available)
             data = data_queue.get(timeout=1)
-            print(data)
             with open(string_date, 'ab') as file_to_write:
                 file_to_write.write(data)
 
