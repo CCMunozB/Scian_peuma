@@ -1,26 +1,27 @@
-# client_queue_monitor.py
+# client_file_sender.py
 import socket
-import time
 import os
-import json
+import time
 import pickle
+import hashlib
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-# Configuración
+# Configuration
 SERVER_IP = 'IP_DE_TU_DEBIAN'
-SERVER_PORT = 000  # Cambia a un puerto adecuado
+SERVER_PORT = 00
 QUEUE_FILE = 'send_queue.pkl'
-MONITOR_DIR = 'path/to/monitor'  # Directorio a monitorear
+MONITOR_DIR = '/home/electroscian/Documents/PEUMA/Scian_peuma/BIS'  # Directory to watch
+BUFFER_SIZE = 4096  # 4KB chunks
 
 class FileHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory:
             add_to_queue(event.src_path)
-            print(f"Nuevo archivo detectado: {event.src_path}")
+            print(f"New file detected: {event.src_path}")
 
 def load_queue():
-    """Carga la cola desde archivo"""
+    """Load queue from file"""
     try:
         with open(QUEUE_FILE, 'rb') as f:
             return pickle.load(f)
@@ -28,19 +29,57 @@ def load_queue():
         return []
 
 def save_queue(queue):
-    """Guarda la cola en archivo"""
+    """Save queue to file"""
     with open(QUEUE_FILE, 'wb') as f:
         pickle.dump(queue, f)
 
 def add_to_queue(filepath):
-    """Añade un archivo a la cola"""
+    """Add file to queue if not already present"""
     queue = load_queue()
     if filepath not in queue:
         queue.append(filepath)
         save_queue(queue)
 
+def send_file(filepath):
+    """Send entire file to server with verification"""
+    try:
+        with open(filepath, 'rb') as f:
+            file_data = f.read()
+        
+        file_name = os.path.basename(filepath)
+        file_size = os.path.getsize(filepath)
+        file_hash = hashlib.md5(file_data).hexdigest()
+        
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(30.0)  # 30 second timeout
+            s.connect((SERVER_IP, SERVER_PORT))
+            
+            # Send metadata (filename and size)
+            metadata = f"{file_name}|{file_size}"
+            s.sendall(metadata.encode('utf-8'))
+            
+            # Wait for metadata acknowledgment
+            response = s.recv(BUFFER_SIZE)
+            if response != b"METADATA_ACK":
+                raise Exception("Metadata acknowledgment failed")
+            
+            # Send file data
+            s.sendall(file_data)
+            
+            # Get final confirmation
+            response = s.recv(BUFFER_SIZE).decode('utf-8')
+            if response.startswith("SUCCESS"):
+                server_hash = response.split('|')[1]
+                if server_hash == file_hash:
+                    return True
+            return False
+            
+    except Exception as e:
+        print(f"Error sending {filepath}: {e}")
+        return False
+
 def process_queue():
-    """Procesa la cola de envío"""
+    """Process the send queue"""
     queue = load_queue()
     if not queue:
         return
@@ -48,61 +87,55 @@ def process_queue():
     successful_sends = []
     
     for filepath in queue:
+        if not os.path.exists(filepath):
+            print(f"File not found, removing from queue: {filepath}")
+            successful_sends.append(filepath)
+            continue
+            
         try:
-            with open(filepath, 'r') as f:
-                data = f.read()
-            
-            if send_data(data.encode('utf-8')):
+            if send_file(filepath):
                 successful_sends.append(filepath)
-                print(f"Archivo {filepath} enviado con éxito")
+                print(f"File sent successfully: {filepath}")
             else:
-                print(f"Error al enviar {filepath}, se reintentará más tarde")
-                break  # Detiene el procesamiento para reintentar luego
-            
+                print(f"Failed to send {filepath}, will retry")
+                break  # Stop processing to retry later
+                
         except Exception as e:
-            print(f"Error procesando {filepath}: {e}")
+            print(f"Error processing {filepath}: {e}")
     
-    # Actualiza la cola removiendo los exitosos
+    # Update queue by removing successful sends
     if successful_sends:
         queue = load_queue()
         queue = [f for f in queue if f not in successful_sends]
         save_queue(queue)
-
-def send_data(data):
-    """Envía datos al servidor y verifica confirmación"""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(10.0)  # Timeout de 10 segundos
-            s.connect((SERVER_IP, SERVER_PORT))
-            s.sendall(data)
-            
-            # Espera confirmación
-            response = s.recv(1024)
-            return response == b"ACK"
-    except Exception as e:
-        print(f"Error en conexión: {e}")
-        return False
+        
+        # Optionally move or delete sent files
+        for sent_file in successful_sends:
+            try:
+                os.remove(sent_file)
+            except:
+                pass
 
 def start_monitoring():
-    """Inicia el monitoreo del directorio"""
+    """Start directory monitoring"""
     event_handler = FileHandler()
     observer = Observer()
     observer.schedule(event_handler, MONITOR_DIR, recursive=False)
     observer.start()
-    print(f"Monitoreando directorio {MONITOR_DIR}")
+    print(f"Monitoring directory: {MONITOR_DIR}")
     
     try:
         while True:
             process_queue()
-            time.sleep(5)  # Procesa la cola cada 5 segundos
+            time.sleep(5)  # Process queue every 5 seconds
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
 
 if __name__ == "__main__":
-    # Verifica si hay archivos pendientes al iniciar
+    # Add any existing files to queue on startup
     initial_files = [os.path.join(MONITOR_DIR, f) for f in os.listdir(MONITOR_DIR) 
-                    if os.path.isfile(os.path.join(MONITOR_DIR, f))]
+                   if os.path.isfile(os.path.join(MONITOR_DIR, f))]
     
     for file in initial_files:
         add_to_queue(file)
