@@ -6,7 +6,6 @@ import scipy.io
 from scipy.signal import get_window
 from antropy import perm_entropy
 from scipy.stats import entropy
-from tqdm import tqdm
 import time
 
 from mne.io import read_raw_edf
