@@ -3,6 +3,8 @@ BIS/
 edf/
 test_peuma.ipynb
 test/
+csvfiles/
+edf_files/
 
 #python env
 .venv/

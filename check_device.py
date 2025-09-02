@@ -13,7 +13,7 @@ def run_program(is_ch341):
     if is_ch341:
         print("CH341 device detected - running program A")
         # Replace with your actual command for CH341 device
-        subprocess.run(["python","/home/electroscian/Documents/PEUMA/Scian_peuma/peuma_bis.py"])
+        subprocess.run(["python3","/home/electroscian/Documents/PEUMA/Scian_peuma/peuma_bis.py"])
     else:
         print("Non-CH341 device detected - running program B")
         # Replace with your actual command for other devices

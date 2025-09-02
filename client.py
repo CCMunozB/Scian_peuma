@@ -8,8 +8,8 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 # Configuration
-SERVER_IP = 'IP_DE_TU_DEBIAN'
-SERVER_PORT = 00
+SERVER_IP = '200.89.79.56'
+SERVER_PORT = 65432
 QUEUE_FILE = 'send_queue.pkl'
 MONITOR_DIR = '/home/electroscian/Documents/PEUMA/Scian_peuma/BIS'  # Directory to watch
 BUFFER_SIZE = 4096  # 4KB chunks
