@@ -7,5 +7,6 @@ csvfiles/
 edf_files/
 
 #python env
+.peumaenv/
 .venv/
 .vscode/
