@@ -15,10 +15,9 @@ def run_program(is_ch341):
         # Replace with your actual command for CH341 device
         subprocess.run(["python3","/home/electroscian/Documents/PEUMA/Scian_peuma/peuma_bis.py"])
     else:
-        print("Non-CH341 device detected - running program B")
+        print("MASIMO Device detected - running program B")
         # Replace with your actual command for other devices
-        #subprocess.run(["/path/to/program_for_others"])
-        print("Device is not a CH341 device, exiting.")
+        subprocess.run(["modprobe", "g_mass_storage", "file=/usb.img", "stall=0", "removable=1"])
 
 def main():
     context = pyudev.Context()
