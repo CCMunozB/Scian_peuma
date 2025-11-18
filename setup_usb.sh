@@ -23,6 +23,7 @@ fi
 if [ ! -f "$IMAGE_FILE" ]; then
     echo "Creating disk image ($IMAGE_SIZE_MB MB)..."
     sudo dd if=/dev/zero of="$IMAGE_FILE" bs=1M count=$IMAGE_SIZE_MB status=progress
+    sudo chmod +777 "$IMAGE_FILE"
     echo "Formatting as FAT32..."
     sudo mkfs.vfat "$IMAGE_FILE"
 else
